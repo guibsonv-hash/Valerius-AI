@@ -1,0 +1,6 @@
+**/bin/
+**/obj/
+artifacts/
+.codex/
+.DS_Store
+*.db*

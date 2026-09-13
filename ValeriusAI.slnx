@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ValeriusAI.App/ValeriusAI.App.csproj" />
+    <Project Path="src/ValeriusAI.Core/ValeriusAI.Core.csproj" />
+    <Project Path="src/ValeriusAI.Infrastructure/ValeriusAI.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ValeriusAI.Tests/ValeriusAI.Tests.csproj" />
+  </Folder>
+</Solution>
