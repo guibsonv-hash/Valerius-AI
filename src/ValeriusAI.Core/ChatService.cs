@@ -4,7 +4,7 @@ namespace ValeriusAI.Core;
 
 public sealed class ChatService(IChatRepository repository, IModelProvider provider, IContextAugmenter? contextAugmenter = null)
 {
-    public async IAsyncEnumerable<Message> SendAsync(string conversationId, string content, AppSettings settings, [EnumeratorCancellation] CancellationToken ct = default)
+    public async IAsyncEnumerable<Message> SendAsync(string conversationId, string content, AppSettings settings, [EnumeratorCancellation] CancellationToken ct = default, string? attachmentContext = null, IReadOnlyList<string>? images = null)
     {
         if (string.IsNullOrWhiteSpace(content)) throw new ArgumentException("Escreva uma mensagem antes de enviar.");
         if (string.IsNullOrWhiteSpace(settings.Model)) throw new ModelException("Selecione um modelo em Ajustes.");
@@ -14,10 +14,12 @@ public sealed class ChatService(IChatRepository repository, IModelProvider provi
             var localContext = await contextAugmenter.BuildAsync(content, settings, ct);
             if (!string.IsNullOrWhiteSpace(localContext)) settings = settings with { SystemPrompt = settings.SystemPrompt + "\n\nContexto local relevante:\n" + localContext };
         }
+        if(!string.IsNullOrWhiteSpace(attachmentContext))settings=settings with{SystemPrompt=settings.SystemPrompt+"\n\nAnexos escolhidos para esta mensagem:\n"+attachmentContext};
         var user = new Message(Guid.NewGuid().ToString(), conversationId, "user", content.Trim(), DateTimeOffset.UtcNow);
         await repository.SaveMessageAsync(user);
         yield return user;
         var history = await repository.GetMessagesAsync(conversationId);
+        if(images is {Count:>0}&&history.Count>0)history=history.Select((message,index)=>index==history.Count-1?message with{Images=images}:message).ToList();
         // Budget conservador por bytes UTF-8, reservando espaço para a resposta.
         var budget = Math.Max(512, settings.ContextSize - settings.MaxTokens - Encoding.UTF8.GetByteCount(settings.SystemPrompt) - 128);
         var selected = new List<Message>();

@@ -13,7 +13,7 @@ public partial class MessageViewModel(Message message) : ObservableObject
     [ObservableProperty] private string state = message.State;
     public bool IsUser => Role == "user";
 }
-public partial class MainViewModel(IChatRepository repository,IWorkspaceRepository workspace,IModelProvider provider,ChatService chat,ILocalRuntime runtime,KnowledgeService knowledge,WorkService work,McpService mcp) : ObservableObject
+public partial class MainViewModel(IChatRepository repository,IWorkspaceRepository workspace,IModelProvider provider,ChatService chat,ILocalRuntime runtime,KnowledgeService knowledge,WorkService work,ArtifactService artifacts,McpService mcp) : ObservableObject
 {
     public ObservableCollection<Conversation> Conversations { get; } = [];
     public ObservableCollection<Conversation> VisibleConversations { get; } = [];
@@ -24,6 +24,7 @@ public partial class MainViewModel(IChatRepository repository,IWorkspaceReposito
     public ObservableCollection<KnowledgeDocument> Documents { get; } = [];
     public ObservableCollection<SearchHit> SearchResults { get; } = [];
     public ObservableCollection<Artifact> Artifacts { get; } = [];
+    public ObservableCollection<ChatAttachment> Attachments { get; } = [];
     public ObservableCollection<AgentTask> Tasks { get; } = [];
     public ObservableCollection<AgentStep> WorkSteps { get; } = [];
     public ObservableCollection<McpServer> McpServers { get; } = [];
@@ -42,6 +43,7 @@ public partial class MainViewModel(IChatRepository repository,IWorkspaceReposito
     [ObservableProperty] private string navigation = "Chat";
     [ObservableProperty] private string pendingConversationMode = "chat";
     [ObservableProperty] private string searchQuery = "";
+    [ObservableProperty] private string conversationSearch = "";
     [ObservableProperty] private string workGoal = "";
     [ObservableProperty] private string workStatus = "Descreva uma tarefa e acompanhe a execução local.";
     [ObservableProperty] private bool working;
@@ -60,6 +62,7 @@ public partial class MainViewModel(IChatRepository repository,IWorkspaceReposito
     partial void OnInitializedChanged(bool value) { OnPropertyChanged(nameof(CanEdit)); OnPropertyChanged(nameof(CanSend)); SendCommand.NotifyCanExecuteChanged(); NewChatCommand.NotifyCanExecuteChanged(); }
     partial void OnReadyChanged(bool value) { OnPropertyChanged(nameof(CanSend)); SendCommand.NotifyCanExecuteChanged(); }
     partial void OnDraftChanged(string value) { OnPropertyChanged(nameof(CanSend)); SendCommand.NotifyCanExecuteChanged(); }
+    partial void OnConversationSearchChanged(string value)=>ApplyConversationFilter();
     public async Task InitializeAsync()
     {
         try { await repository.InitializeAsync(); Settings=await repository.GetSettingsAsync(); Settings.Validate(); ApplyTheme(); await ReloadAsync(); await ReloadWorkspaceAsync(); Initialized=true; if(Conversations.FirstOrDefault(x=>!x.IsArchived) is {} first) await OpenAsync(first); await RefreshAsync(); }
@@ -72,7 +75,8 @@ public partial class MainViewModel(IChatRepository repository,IWorkspaceReposito
     private void ApplyConversationFilter()
     {
         VisibleConversations.Clear();
-        foreach(var conversation in Conversations.Where(c=>c.IsArchived==ShowingArchived&&(ConversationFolderFilter is null||c.FolderId==ConversationFolderFilter)).OrderByDescending(c=>c.IsPinned).ThenByDescending(c=>c.UpdatedAt)) VisibleConversations.Add(conversation);
+        var query=ConversationSearch.Trim();
+        foreach(var conversation in Conversations.Where(c=>c.IsArchived==ShowingArchived&&(query.Length>0||ConversationFolderFilter is null||c.FolderId==ConversationFolderFilter)&&(query.Length==0||c.Title.Contains(query,StringComparison.OrdinalIgnoreCase))).OrderByDescending(c=>c.IsPinned).ThenByDescending(c=>c.UpdatedAt)) VisibleConversations.Add(conversation);
     }
     public async Task ReloadWorkspaceAsync()
     {
@@ -102,7 +106,7 @@ public partial class MainViewModel(IChatRepository repository,IWorkspaceReposito
     public void NewCreateChat() => PrepareConversation("create");
     private void PrepareConversation(string mode)
     {
-        ShowConversations(); PendingConversationMode=mode; SelectedConversation=null; Messages.Clear(); Draft=""; Error="";
+        ShowConversations(); PendingConversationMode=mode; SelectedConversation=null; Messages.Clear();Attachments.Clear(); Draft=""; Error="";
         Status=mode=="create"?"Modo Criar iniciado · descreva o arquivo que deseja produzir":"Novo chat iniciado · escreva sua mensagem";
         OnPropertyChanged(nameof(ConversationMode)); OnPropertyChanged(nameof(ConversationModeLabel)); FocusRequested?.Invoke();
     }
@@ -111,7 +115,7 @@ public partial class MainViewModel(IChatRepository repository,IWorkspaceReposito
     private async Task SendCoreAsync()
     {
         if(!CanSend) return;
-        Busy=true; Error=""; generation=new(); var input=Draft.Trim(); var userSaved=false; string? activeConversationId=null;
+        Busy=true; Error=""; generation=new(); var input=Draft.Trim();var attachments=Attachments.ToList(); var userSaved=false; string? activeConversationId=null;
         try
         {
             var title=string.Join(" ",input.Split((char[]?)null,StringSplitOptions.RemoveEmptyEntries));
@@ -132,7 +136,10 @@ public partial class MainViewModel(IChatRepository repository,IWorkspaceReposito
             }
             else
             {
-                await foreach(var m in chat.SendAsync(c.Id,input,Settings,generation.Token))
+                var imagePaths=attachments.Where(x=>x.Kind=="image").Select(x=>x.Path).ToList();
+                if(imagePaths.Count>0&&!(await provider.GetCapabilitiesAsync(Settings.Model,generation.Token)).Vision)throw new ModelException("O modelo selecionado não aceita imagens. Escolha um modelo local com visão em Ajustes ou remova as imagens.");
+                var attachmentContext=string.Join("\n\n",attachments.Where(x=>x.Kind=="document").Select(x=>$"Arquivo {x.Name}:\n{x.Context}"));
+                await foreach(var m in chat.SendAsync(c.Id,input,Settings,generation.Token,attachmentContext,imagePaths))
                 {
                     if(m.Role=="user") {userSaved=true; Messages.Add(new(m)); ScrollRequested?.Invoke(true); continue;}
                     pending=m;
@@ -147,7 +154,7 @@ public partial class MainViewModel(IChatRepository repository,IWorkspaceReposito
         catch(Exception e) {Report(e,"Não foi possível gerar a resposta. Confira o Ollama e tente novamente.");}
         finally
         {
-            if(!userSaved) Draft=input;
+            if(!userSaved) Draft=input;else Attachments.Clear();
             try
             {
                 await ReloadAsync();
@@ -212,6 +219,10 @@ public partial class MainViewModel(IChatRepository repository,IWorkspaceReposito
     {if(SelectedConversation is not {} c)return;await workspace.UpdateConversationAsync(c with{IsArchived=!c.IsArchived,UpdatedAt=DateTimeOffset.UtcNow});NewChat();await ReloadAsync();}
     public async Task<Folder> CreateFolderAsync(string name)
     {var folder=new Folder(Guid.NewGuid().ToString(),name.Trim(),DateTimeOffset.UtcNow);await workspace.SaveFolderAsync(folder);await ReloadWorkspaceAsync();return folder;}
+    public async Task RenameFolderAsync(Folder folder,string name)
+    {if(string.IsNullOrWhiteSpace(name))throw new ArgumentException("Informe um nome para a pasta.");await workspace.SaveFolderAsync(folder with{Name=name.Trim()});await ReloadWorkspaceAsync();}
+    public async Task DeleteFolderAsync(Folder folder)
+    {await workspace.DeleteFolderAsync(folder.Id);if(ConversationFolderFilter==folder.Id)ConversationFolderFilter=null;await ReloadWorkspaceAsync();await ReloadAsync();}
     public async Task MoveToFolderAsync(Folder? folder)
     {if(SelectedConversation is not {} c)return;await workspace.UpdateConversationAsync(c with{FolderId=folder?.Id,UpdatedAt=DateTimeOffset.UtcNow});await ReloadAsync();}
     public async Task SaveMemoryAsync(string content)
@@ -220,6 +231,20 @@ public partial class MainViewModel(IChatRepository repository,IWorkspaceReposito
     public async Task ImportDocumentAsync(string path,IProgress<double>? progress=null,CancellationToken ct=default)
     {Status="Indexando conhecimento local…";await knowledge.ImportAsync(path,Settings,progress,ct);await ReloadWorkspaceAsync();Status="Documento pronto para consulta local";}
     public async Task DeleteDocumentAsync(string id){await workspace.DeleteDocumentAsync(id);await ReloadWorkspaceAsync();}
+    public async Task DeleteArtifactAsync(Artifact artifact){await artifacts.DeleteAsync(artifact);await ReloadWorkspaceAsync();}
+    public async Task AddLocalAttachmentsAsync(IEnumerable<string> paths)
+    {
+        foreach(var path in paths)
+        {
+            var file=new FileInfo(path);if(!file.Exists)continue;var extension=file.Extension.ToLowerInvariant();
+            if(extension is ".png" or ".jpg" or ".jpeg" or ".webp")
+            {if(file.Length>20_000_000)throw new InvalidDataException("Use imagens de até 20 MB.");Attachments.Add(new(Guid.NewGuid().ToString(),file.Name,file.FullName,"image"));continue;}
+            var text=await knowledge.ExtractForContextAsync(file.FullName);Attachments.Add(new(Guid.NewGuid().ToString(),file.Name,file.FullName,"document",text));
+        }
+    }
+    public async Task AddKnowledgeAttachmentAsync(KnowledgeDocument document)
+    {var chunks=(await workspace.GetChunksAsync()).Where(x=>x.DocumentId==document.Id).OrderBy(x=>x.Position).Select(x=>x.Content);var text=string.Join("\n",chunks);if(string.IsNullOrWhiteSpace(text))throw new InvalidDataException("Este documento ainda não possui texto indexado.");Attachments.Add(new(Guid.NewGuid().ToString(),document.Name,document.Path,"document",text.Length>16000?text[..16000]:text));}
+    public void RemoveAttachment(ChatAttachment attachment)=>Attachments.Remove(attachment);
     public async Task SearchAsync()
     {SearchResults.Clear();if(string.IsNullOrWhiteSpace(SearchQuery))return;foreach(var hit in await workspace.SearchAsync(SearchQuery))SearchResults.Add(hit);}
     public async Task OpenSearchHitAsync(SearchHit hit)

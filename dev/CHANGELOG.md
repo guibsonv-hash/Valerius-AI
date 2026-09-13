@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1
+
+- Sidebar reorganizada com Biblioteca e Novo chat na mesma linha, Busca dedicada e seções recolhíveis.
+- Menus de contexto para renomear e excluir pastas preservando as conversas.
+- Exclusão confirmada de arquivos criados e documentos indexados.
+- Anexos de documentos locais, Conhecimento e imagens no contexto do chat.
+- Bundle macOS com nome de ícone renovado e cache do Launch Services atualizado.
+
 ## 0.2.0
 
 * GPT OSS 20B como modelo padrão, seletor de raciocínio e diagnóstico de espaço.

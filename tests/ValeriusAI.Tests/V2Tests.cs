@@ -61,6 +61,7 @@ public sealed class V2Tests : IDisposable
         Assert.NotEmpty(await repository.GetChunksAsync());
         Assert.Contains(await repository.SearchAsync("fotovoltaicas"), x => x.Kind == "Conhecimento");
         Assert.Contains("Documento local", await service.BuildAsync("energia solar", new()));
+        await repository.DeleteDocumentAsync(document.Id);Assert.Empty(await repository.GetDocumentsAsync());Assert.Empty(await repository.GetChunksAsync());
     }
 
     [Fact]
@@ -69,6 +70,15 @@ public sealed class V2Tests : IDisposable
         var repository=await Repository();var conversation=await repository.CreateAsync("Organizar projeto");var folder=new Folder("f","Projetos",DateTimeOffset.UtcNow);await repository.SaveFolderAsync(folder);
         await repository.UpdateConversationAsync(conversation with{FolderId=folder.Id,IsPinned=true,IsArchived=true});
         var saved=Assert.Single(await repository.GetConversationsAsync());Assert.Equal(folder.Id,saved.FolderId);Assert.True(saved.IsPinned);Assert.True(saved.IsArchived);
+    }
+
+    [Fact]
+    public async Task RenamingAndDeletingFolderPreservesItsConversationsInDefaultList()
+    {
+        var repository=await Repository();var conversation=await repository.CreateAsync("Conversa preservada");var folder=new Folder("folder","Projetos",DateTimeOffset.UtcNow);await repository.SaveFolderAsync(folder);await repository.UpdateConversationAsync(conversation with{FolderId=folder.Id});
+        await repository.SaveFolderAsync(folder with{Name="Projetos ativos"});Assert.Equal("Projetos ativos",Assert.Single(await repository.GetFoldersAsync()).Name);
+        await repository.DeleteFolderAsync(folder.Id);
+        Assert.Empty(await repository.GetFoldersAsync());var saved=Assert.Single(await repository.GetConversationsAsync());Assert.Null(saved.FolderId);Assert.Equal(conversation.Id,saved.Id);Assert.Equal("Conversa preservada",saved.Title);
     }
 
     [Fact]
@@ -87,9 +97,11 @@ public sealed class V2Tests : IDisposable
     public async Task FirstSendLeavesEmptyStateAndShowsPersistedMessages()
     {
         var repository=await Repository();var provider=new FakeProvider();var chat=new ChatService(repository,provider);
-        var vm=new MainViewModel(repository,repository,provider,chat,new FakeRuntime(),new KnowledgeService(repository,provider),new WorkService(repository,provider,new ArtifactService(repository,Path.Combine(directory,"output"))),new McpService());
+        var artifactService=new ArtifactService(repository,Path.Combine(directory,"output"));var vm=new MainViewModel(repository,repository,provider,chat,new FakeRuntime(),new KnowledgeService(repository,provider),new WorkService(repository,provider,artifactService),artifactService,new McpService());
         await vm.InitializeAsync();vm.Draft="Teste integrado";await vm.SendCommand.ExecuteAsync(null);
         Assert.NotNull(vm.SelectedConversation);Assert.Equal(2,vm.Messages.Count);Assert.Equal("Teste integrado",vm.Messages[0].Content);Assert.Equal("ok",vm.Messages[1].Content);Assert.Equal(2,(await repository.GetMessagesAsync(vm.SelectedConversation!.Id)).Count);
+        vm.ConversationSearch="integrado";Assert.Single(vm.VisibleConversations);vm.ConversationSearch="inexistente";Assert.Empty(vm.VisibleConversations);vm.ConversationSearch="";Assert.Single(vm.VisibleConversations);
+        var emptyFolder=await vm.CreateFolderAsync("Pasta vazia");vm.FilterByFolder(emptyFolder);Assert.Empty(vm.VisibleConversations);vm.ConversationSearch="integrado";Assert.Single(vm.VisibleConversations);vm.ConversationSearch="";Assert.Empty(vm.VisibleConversations);
     }
 
     [Fact]
@@ -145,6 +157,14 @@ public sealed class V2Tests : IDisposable
         Assert.Equal("conversation-create", result.Task.ConversationId);
         Assert.True(File.Exists(result.Artifact.Path));
         Assert.Equal(4, (await repository.GetAgentStepsAsync(result.Task.Id)).Count);
+    }
+
+    [Fact]
+    public async Task DeletingCreatedArtifactRemovesFileAndLibraryRecord()
+    {
+        var repository=await Repository();var now=DateTimeOffset.UtcNow;await repository.SaveAgentTaskAsync(new("task","Criar","Concluída",now,now),[]);var service=new ArtifactService(repository,Path.Combine(directory,"artifacts"));var artifact=await service.CreateAsync("task","temporário","txt","conteúdo local");
+        await service.DeleteAsync(artifact);
+        Assert.False(File.Exists(artifact.Path));Assert.Empty(await repository.GetArtifactsAsync());
     }
 
     private sealed class FakeProvider : IModelProvider

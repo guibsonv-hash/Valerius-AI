@@ -34,6 +34,15 @@ public sealed class ArtifactService(IWorkspaceRepository repository, string outp
         return artifact;
     }
 
+    public async Task DeleteAsync(Artifact artifact, CancellationToken ct = default)
+    {
+        var root=Path.GetFullPath(outputDirectory).TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar;
+        var path=Path.GetFullPath(artifact.Path);
+        if(!path.StartsWith(root,StringComparison.Ordinal))throw new InvalidOperationException("O arquivo não pertence à Biblioteca local.");
+        if(File.Exists(path))await Task.Run(()=>File.Delete(path),ct);
+        await repository.DeleteArtifactAsync(artifact.Id);
+    }
+
     private static void Write(string path, string type, string content)
     {
         if (type is "md" or "txt" or "csv" or "json") { File.WriteAllText(path, content); return; }

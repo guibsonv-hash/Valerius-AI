@@ -31,6 +31,12 @@ public sealed class ChatTests : IDisposable
         await Assert.ThrowsAsync<ModelException>(async()=>{await foreach(var _ in service.SendAsync(c.Id,"Oi",new(){Model="local"})){};});
         var saved=await r.GetMessagesAsync(c.Id);Assert.Equal("Olá",saved[1].Content);Assert.Equal("interrupted",saved[1].State);
     }
+    [Fact] public async Task ExplicitAttachmentsReachOnlyTheCurrentModelRequest()
+    {
+        var r=await Repository();var c=await r.CreateAsync("Anexos");var provider=new FakeProvider();var service=new ChatService(r,provider);var image=Path.Combine(directory,"imagem.png");await File.WriteAllBytesAsync(image,[1,2,3]);
+        await foreach(var _ in service.SendAsync(c.Id,"Analise",new(){Model="local"},default,"Arquivo notas.txt:\nconteúdo escolhido",[image])){}
+        Assert.Contains("conteúdo escolhido",provider.ReceivedSettings!.SystemPrompt);Assert.Equal(image,Assert.Single(provider.Received!.Last().Images!));Assert.Null((await r.GetMessagesAsync(c.Id)).Single(x=>x.Role=="user").Images);
+    }
     [Fact] public async Task CancellationKeepsAlreadyReceivedText()
     {
         var r=await Repository();var c=await r.CreateAsync("Teste");using var ct=new CancellationTokenSource();var service=new ChatService(r,new FakeProvider());
@@ -75,9 +81,9 @@ public sealed class ChatTests : IDisposable
     {protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken ct)=>Task.FromResult(f(request));}
     private sealed class FakeProvider:IModelProvider
     {
-        public bool Fail{get;init;} public IReadOnlyList<Message>? Received{get;private set;}
+        public bool Fail{get;init;} public IReadOnlyList<Message>? Received{get;private set;} public AppSettings? ReceivedSettings{get;private set;}
         public async IAsyncEnumerable<string> StreamAsync(IReadOnlyList<Message> messages,AppSettings settings,[EnumeratorCancellation]CancellationToken ct=default)
-        {Received=messages;await Task.Yield();ct.ThrowIfCancellationRequested();yield return "Olá";if(Fail)throw new ModelException("Falha simulada");ct.ThrowIfCancellationRequested();yield return ", mundo!";}
+        {Received=messages;ReceivedSettings=settings;await Task.Yield();ct.ThrowIfCancellationRequested();yield return "Olá";if(Fail)throw new ModelException("Falha simulada");ct.ThrowIfCancellationRequested();yield return ", mundo!";}
         public Task<Availability> CheckAvailabilityAsync(CancellationToken ct=default)=>Task.FromResult(new Availability(true,"ok"));
         public Task<IReadOnlyList<LocalModel>> GetModelsAsync(CancellationToken ct=default)=>Task.FromResult<IReadOnlyList<LocalModel>>([]);
         public Task<ModelCapabilities> GetCapabilitiesAsync(string model,CancellationToken ct=default)=>Task.FromResult(new ModelCapabilities(true,true,true,true,[]));

@@ -44,6 +44,12 @@ public sealed class KnowledgeService(IWorkspaceRepository repository, IModelProv
         }
     }
 
+    public async Task<string> ExtractForContextAsync(string path,CancellationToken ct=default)
+    {
+        var file=new FileInfo(path);if(!file.Exists)throw new FileNotFoundException("O arquivo selecionado não foi encontrado.",path);if(!Supported.Contains(file.Extension))throw new NotSupportedException("Use TXT, Markdown, CSV, JSON, DOCX, PPTX, XLSX ou PDF.");
+        var text=await Task.Run(()=>Extract(path),ct);if(string.IsNullOrWhiteSpace(text))throw new InvalidDataException("Nenhum texto legível foi encontrado no arquivo.");return text.Length>16000?text[..16000]:text;
+    }
+
     public async Task<string> BuildAsync(string query, AppSettings settings, CancellationToken ct = default)
     {
         var sections = new List<string>();

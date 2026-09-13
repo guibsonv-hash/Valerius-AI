@@ -1,6 +1,6 @@
 # Valerius AI
 
-Valerius AI 0.2.0 é um aplicativo desktop de inteligência artificial local para macOS Apple Silicon. O chat, a memória, a base de conhecimento, os arquivos criados e a inferência permanecem no computador. O funcionamento principal não exige conta, chave de API, assinatura ou serviço de IA em nuvem.
+Valerius AI 0.2.1 é um aplicativo desktop de inteligência artificial local para macOS Apple Silicon. O chat, a memória, a base de conhecimento, os arquivos criados e a inferência permanecem no computador. O funcionamento principal não exige conta, chave de API, assinatura ou serviço de IA em nuvem.
 
 Desenvolvimento e direção de produto por [Guibson Valerio](https://guibson.com.br). Empresa desenvolvedora: [Valerius Studios](https://valeriusstudios.com).
 
@@ -11,9 +11,13 @@ Desenvolvimento e direção de produto por [Guibson Valerio](https://guibson.com
 - Markdown com títulos, listas, citações, ênfase e blocos de código, além de seleção de texto e cópia por mensagem.
 - Histórico persistido com título derivado da primeira mensagem, renomeação, exclusão, fixação e arquivamento.
 - Pastas para organizar conversas. O menu de contexto por botão direito permite renomear, arquivar, excluir e mover uma conversa para uma pasta escolhida.
+- Pastas podem ser renomeadas ou excluídas pelo menu de contexto. Excluir uma pasta preserva seus chats e os devolve à lista principal.
+- O composer aceita documentos locais, itens já indexados em Conhecimento e imagens. Imagens exigem um modelo Ollama local com capacidade de visão.
 - Busca em conversas, mensagens, memória e documentos indexados.
+- Filtro instantâneo de conversas pelo título na sidebar. Enter abre a busca global com o mesmo termo.
 - Modo Criar para produzir arquivos reais em DOCX, XLSX, PPTX, PDF, Markdown, TXT, CSV e JSON.
 - Biblioteca com base de conhecimento, arquivos criados e memória explícita.
+- Documentos de Conhecimento e arquivos criados podem ser excluídos pela interface com confirmação.
 - RAG local para TXT, Markdown, CSV, JSON, DOCX, PPTX, XLSX e PDFs com camada de texto.
 - Cliente MCP local por `stdio`, com cadastro explícito do comando e listagem das ferramentas oferecidas.
 - Ferramentas locais registradas com estado e política de permissão.
@@ -77,7 +81,7 @@ O teste MCP real é opt-in porque inicia o servidor oficial de filesystem por `n
 VALERIUS_MCP_INTEGRATION=1 dotnet test tests/ValeriusAI.Tests/ValeriusAI.Tests.csproj -c Release --filter FullyQualifiedName~OfficialMcpClientListsFilesystemToolsWhenIntegrationIsEnabled
 ```
 
-Na validação final de 12/09/2026, 29 de 29 testes passaram. O teste MCP real também passou separadamente.
+Na validação final de 12/09/2026, 32 de 32 testes passaram. O teste MCP real também passou separadamente.
 
 ## Limitações atuais
 

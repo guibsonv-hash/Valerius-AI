@@ -10,7 +10,8 @@ A interface usa a identidade aprovada em `identidade-visual/` e toma como refer�
 
 - Marca, nome do produto e controles da sidebar estão alinhados verticalmente.
 - Chat e Criar compartilham um controle segmentado centralizado e com a mesma altura.
-- Biblioteca e Busca compartilham uma linha de ícones pequenos com nomes acessíveis e tooltips.
+- Biblioteca e Novo chat compartilham a primeira linha da sidebar, com a mesma altura de 48 pontos e alinhamento central.
+- A busca ocupa a linha inteira abaixo das ações principais e filtra os títulos enquanto o texto é digitado, inclusive quando uma pasta está selecionada.
 - Arquivadas, Ajustes e Créditos compartilham uma linha de três ícones discretos no rodapé.
 - O texto “Local por natureza” foi movido para a tela de informações, junto com privacidade e créditos.
 - O estado vazio, o composer, o botão de envio e as sugestões usam um mesmo eixo visual.
@@ -18,11 +19,13 @@ A interface usa a identidade aprovada em `identidade-visual/` e toma como refer�
 - Durante streaming, o campo é desabilitado e o botão de envio muda para Interromper geração.
 - A interrupção deixa uma resposta parcial identificada e devolve o foco ao composer.
 - A Biblioteca organiza Conhecimento, Arquivos criados e Memória no mesmo nível.
+- Conhecimento e Arquivos criados exibem exclusão contextual com confirmação e sem comprometer o restante da biblioteca.
+- O botão de anexo fica à esquerda do composer e abre uma seleção única para arquivos, imagens e itens já indexados em Conhecimento.
 - Tools e MCP ficam em Recursos avançados dentro de Ajustes.
 - O menu de conversa apresenta Renomear, Mover para uma pasta, Fixar, Arquivar e Excluir com larguras consistentes.
 - A escolha de pasta apresenta Sem pasta e as pastas disponíveis em uma lista simples.
 - A tela de créditos destaca Guibson Valerio, `guibson.com.br`, Valerius Studios e `valeriusstudios.com`.
-- O tema escuro foi aplicado, inspecionado e a preferência Sistema foi restaurada ao final.
+- O tema escuro foi aplicado, inspecionado e mantido conforme a preferência local salva.
 - A largura mínima é 700 e a altura mínima é 560. O modo compacto reduz sidebar e margens sem remover ações essenciais.
 
 ## Acessibilidade
@@ -31,4 +34,4 @@ Os ícones possuem nomes acessíveis, foco por teclado e tooltips. Campos e sele
 
 ## Evidência funcional associada
 
-No mesmo pacote revisado, uma mensagem foi enviada ao `qwen3:1.7b`, os tokens apareceram progressivamente, a resposta terminou e a conversa reapareceu após fechar e reabrir o `.app`. Uma segunda geração foi interrompida pela interface. O modo Criar produziu um PDF A4 válido e o registrou em Arquivos criados.
+No mesmo pacote revisado, a mensagem “Responda apenas: Valerius validado localmente.” foi enviada ao `qwen3:1.7b`, o estado de streaming apareceu, a resposta terminou e a conversa com as duas mensagens reapareceu após encerrar o processo e reabrir o `.app`. Uma segunda geração havia sido interrompida pela interface na rodada funcional anterior. O modo Criar produziu um PDF A4 válido e o registrou em Arquivos criados.

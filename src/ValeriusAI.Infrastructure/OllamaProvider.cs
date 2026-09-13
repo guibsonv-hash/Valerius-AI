@@ -30,7 +30,7 @@ public sealed class OllamaProvider(HttpClient client) : IModelProvider
             ? caps.EnumerateArray().Select(x=>x.GetString()??"").ToHashSet(StringComparer.OrdinalIgnoreCase)
             : [];
         var isGptOss=model.StartsWith("gpt-oss",StringComparison.OrdinalIgnoreCase);
-        return new(capabilities.Contains("tools")||isGptOss,capabilities.Contains("thinking")||isGptOss,capabilities.Contains("completion")||isGptOss,capabilities.Contains("embedding"),families);
+        return new(capabilities.Contains("tools")||isGptOss,capabilities.Contains("thinking")||isGptOss,capabilities.Contains("completion")||isGptOss,capabilities.Contains("embedding"),families,capabilities.Contains("vision"));
     }
     private static bool IsRemote(JsonElement j) => (j.TryGetProperty("remote_host",out var host) && !string.IsNullOrWhiteSpace(host.GetString())) || (j.TryGetProperty("remote_model",out var model) && !string.IsNullOrWhiteSpace(model.GetString()));
     private async Task VerifyLocalAsync(string model,CancellationToken ct)
@@ -66,7 +66,16 @@ public sealed class OllamaProvider(HttpClient client) : IModelProvider
         if(settings.Model.Contains("cloud",StringComparison.OrdinalIgnoreCase)) throw new ModelException("Escolha um modelo local. Modelos de nuvem estão desativados.");
         await VerifyLocalAsync(settings.Model,ct);
         var modelMessages=new List<object>{new {role="system",content=settings.SystemPrompt}};
-        modelMessages.AddRange(messages.Select(m=>(object)new {role=m.Role,content=m.Content}));
+        foreach(var message in messages)
+        {
+            if(message.Images is {Count:>0})
+            {
+                var images=new List<string>(message.Images.Count);
+                foreach(var path in message.Images)images.Add(Convert.ToBase64String(await File.ReadAllBytesAsync(path,ct)));
+                modelMessages.Add(new{role=message.Role,content=message.Content,images=images.ToArray()});
+            }
+            else modelMessages.Add(new{role=message.Role,content=message.Content,images=Array.Empty<string>()});
+        }
         var done=false; var received=false;
         object think=settings.Model.StartsWith("gpt-oss",StringComparison.OrdinalIgnoreCase)?settings.ReasoningEffort:false;
         await foreach(var line in Lines("api/chat",new { model=settings.Model,messages=modelMessages,stream=true,think,keep_alive="2m",options=new {temperature=settings.Temperature,num_predict=settings.MaxTokens,num_ctx=settings.ContextSize}},ct))

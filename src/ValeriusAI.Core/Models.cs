@@ -13,7 +13,7 @@ public static class Product
 
 public record Conversation(string Id, string Title, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
     string? FolderId = null, bool IsArchived = false, bool IsPinned = false, string Mode = "chat");
-public record Message(string Id, string ConversationId, string Role, string Content, DateTimeOffset CreatedAt, string State = "complete");
+public record Message(string Id, string ConversationId, string Role, string Content, DateTimeOffset CreatedAt, string State = "complete", IReadOnlyList<string>? Images = null);
 public record LocalModel(string Name, long Size) { public override string ToString() => $"{Name} · {Size / 1e9:0.0} GB"; }
 public record Availability(bool Ready, string Description);
 public record DownloadProgress(string Status, long Completed, long Total);
@@ -27,7 +27,8 @@ public record ToolSetting(string Name, bool Enabled, string Permission);
 public record AgentTask(string Id, string Goal, string Status, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, string? ConversationId = null);
 public record AgentStep(string Id, string TaskId, int Position, string Description, string Status, string? Result = null);
 public record Artifact(string Id, string TaskId, string Name, string Path, string Type, long Size, DateTimeOffset CreatedAt);
-public record ModelCapabilities(bool Tools, bool Reasoning, bool StructuredOutput, bool Embeddings, IReadOnlyList<string> Families);
+public record ChatAttachment(string Id,string Name,string Path,string Kind,string Context="");
+public record ModelCapabilities(bool Tools, bool Reasoning, bool StructuredOutput, bool Embeddings, IReadOnlyList<string> Families, bool Vision=false);
 public record ToolCall(string Name, JsonElement Arguments);
 
 public record AppSettings
@@ -91,6 +92,7 @@ public interface IWorkspaceRepository
     Task<IReadOnlyList<AgentTask>> GetAgentTasksAsync();
     Task<IReadOnlyList<AgentStep>> GetAgentStepsAsync(string taskId);
     Task SaveArtifactAsync(Artifact artifact);
+    Task DeleteArtifactAsync(string id);
     Task<IReadOnlyList<Artifact>> GetArtifactsAsync();
 }
 

@@ -144,7 +144,7 @@ public sealed class SqliteChatRepository(string path) : IChatRepository, IWorksp
     public Task<Folder> SaveFolderAsync(Folder folder) => Run(db =>
     { Exec(db, "INSERT INTO Folder VALUES($id,$name,$created) ON CONFLICT(Id) DO UPDATE SET Name=excluded.Name", ("$id", folder.Id), ("$name", folder.Name), ("$created", Iso(folder.CreatedAt))); return folder; });
     public Task DeleteFolderAsync(string id) => Run(db =>
-    { Exec(db, "UPDATE Conversation SET FolderId=NULL WHERE FolderId=$id", ("$id", id)); return Exec(db, "DELETE FROM Folder WHERE Id=$id", ("$id", id)); });
+    { using var transaction=db.BeginTransaction();Exec(db, "UPDATE Conversation SET FolderId=NULL WHERE FolderId=$id", ("$id", id));var changed=Exec(db, "DELETE FROM Folder WHERE Id=$id", ("$id", id));transaction.Commit();return changed; });
 
     public Task<IReadOnlyList<MemoryItem>> GetMemoriesAsync() => Run<IReadOnlyList<MemoryItem>>(db =>
     { using var c = Command(db, "SELECT Id,Content,CreatedAt,UpdatedAt,Enabled FROM Memory ORDER BY UpdatedAt DESC"); using var r = c.ExecuteReader(); var x = new List<MemoryItem>(); while (r.Read()) x.Add(new(r.GetString(0), r.GetString(1), Date(r.GetString(2)), Date(r.GetString(3)), Bool(r, 4))); return x; });
@@ -203,6 +203,7 @@ public sealed class SqliteChatRepository(string path) : IChatRepository, IWorksp
     public Task<IReadOnlyList<AgentStep>> GetAgentStepsAsync(string taskId) => Run<IReadOnlyList<AgentStep>>(db =>
     { using var c = Command(db, "SELECT Id,TaskId,Position,Description,Status,Result FROM AgentStep WHERE TaskId=$id ORDER BY Position", ("$id", taskId)); using var r = c.ExecuteReader(); var x = new List<AgentStep>(); while (r.Read()) x.Add(new(r.GetString(0), r.GetString(1), r.GetInt32(2), r.GetString(3), r.GetString(4), r.IsDBNull(5) ? null : r.GetString(5))); return x; });
     public Task SaveArtifactAsync(Artifact a) => Run(db => Exec(db, "INSERT INTO Artifact VALUES($id,$task,$name,$path,$type,$size,$created) ON CONFLICT(Id) DO UPDATE SET Name=excluded.Name,Path=excluded.Path,Type=excluded.Type,Size=excluded.Size", ("$id", a.Id), ("$task", a.TaskId), ("$name", a.Name), ("$path", a.Path), ("$type", a.Type), ("$size", a.Size), ("$created", Iso(a.CreatedAt))));
+    public Task DeleteArtifactAsync(string id) => Run(db => Exec(db, "DELETE FROM Artifact WHERE Id=$id", ("$id", id)));
     public Task<IReadOnlyList<Artifact>> GetArtifactsAsync() => Run<IReadOnlyList<Artifact>>(db =>
     { using var c = Command(db, "SELECT Id,TaskId,Name,Path,Type,Size,CreatedAt FROM Artifact ORDER BY CreatedAt DESC"); using var r = c.ExecuteReader(); var x = new List<Artifact>(); while (r.Read()) x.Add(new(r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4), r.GetInt64(5), Date(r.GetString(6)))); return x; });
 }
